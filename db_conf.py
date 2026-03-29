@@ -1,0 +1,5 @@
+dbname="fur_action_db"
+user="postgres"
+password="1"
+host="localhost"
+port="5432"
