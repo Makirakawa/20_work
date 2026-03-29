@@ -41,6 +41,7 @@ def main(page: ft.Page):
 
     def farms_record_page():
         page.clean()
+        page.update()
         page.window.height = 900
         page.window.wight = 1600
 
@@ -50,7 +51,7 @@ def main(page: ft.Page):
                 return conn
             try:
                 with conn.cursor() as cursor:
-                    cursor.execute('''SELECT * FROM farms;''')
+                    cursor.execute('''SELECT * FROM farm_table;''')
                     return cursor.fetchall()
 
             except Exception as _ex:
@@ -65,12 +66,13 @@ def main(page: ft.Page):
                 return conn
             try:
                 with conn.cursor() as cursor:
-                    cursor.execute(f'''INSERT INTO farms VALUES ('{adress_textfield.value}','{director_textfield.value}','{phone_textfield.value}');''')
-                    return cursor.fetchall()
-
+                    cursor.execute(f"INSERT INTO farm_table(addres, director, phone) VALUES('{adress_textfield.value}','{director_textfield.value}','{phone_textfield.value}')")
+                page.update()
             except Exception as _ex:
                 print("Error connecting to farms table", _ex)
             finally:
+                page.pop_dialog()
+                page.update()
                 if conn:
                     conn.close()
 
