@@ -1,6 +1,5 @@
 import flet as ft
 import psycopg2 as pg
-from flet import Column
 
 from db_conf import dbname, user, password, host, port
 
@@ -33,9 +32,9 @@ def main(page: ft.Page):
         page.window.wight = 1600
         page.add(
             ft.Column([
-                ft.Button("Фермы", on_click= lambda _: farms_record_page() ),
-                ft.Button("Пушнина на аукционе", on_click= lambda _: lots_record_page() ),
-                ft.Button("Результаты аукциона", on_click= lambda _: auction_results() ),
+                ft.Button("Фермы", on_click=lambda _: farms_record_page()),
+                ft.Button("Пушнина на аукционе", on_click=lambda _: lots_record_page()),
+                ft.Button("Результаты аукциона", on_click=lambda _: auction_results()),
             ])
         )
 
@@ -66,15 +65,78 @@ def main(page: ft.Page):
                 return conn
             try:
                 with conn.cursor() as cursor:
-                    cursor.execute(f"INSERT INTO farm_table(addres, director, phone) VALUES('{adress_textfield.value}','{director_textfield.value}','{phone_textfield.value}')")
+                    cursor.execute(
+                        f"INSERT INTO farm_table(addres, director, phone) VALUES('{adress_textfield.value}','{director_textfield.value}','{phone_textfield.value}')")
                 page.update()
             except Exception as _ex:
                 print("Error connecting to farms table", _ex)
             finally:
                 page.pop_dialog()
-                page.update()
+                page.clean()
+                farms_record_page()
                 if conn:
                     conn.close()
+
+        def delete_on_farm_table(farm_id):
+            conn = database_connect()
+            if conn is None:
+                return conn
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute(f"DELETE FROM farm_table WHERE farm_id = (%s)", (farm_id,))
+                    conn.commit()
+            except Exception as _ex:
+                print("Error connecting to farms table", _ex)
+            finally:
+                page.pop_dialog()
+                page.clean()
+                farms_record_page()
+                if conn:
+                    conn.close()
+
+        def edit_on_farm_table(farm_id, addres, director, phone):
+            conn = database_connect()
+            if conn is None:
+                return conn
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute(f"UPDATE farm_table SET addres=%s, director=%s, phone=%s WHERE farm_id=%s",
+                                   ( addres, director, phone, farm_id))
+                    conn.commit()
+            except Exception as _ex:
+                print("Error connecting to farms table", _ex)
+            finally:
+                page.pop_dialog()
+                page.clean()
+                farms_record_page()
+                if conn:
+                    conn.close()
+
+
+        def edit_modal_page(farm):
+            print("Открываю диалог", farm)
+            address = ft.TextField(label="Адрес", value=farm[1])
+            director = ft.TextField(label="Директор", value=farm[2])
+            phone = ft.TextField(label="Номер телефона", value=farm[3])
+            modal_dialog = ft.AlertDialog(
+                modal=True,
+                title=ft.Text("Редактировать запись"),
+                content=ft.Column([
+                    address,
+                    director,
+                    phone
+                ]),
+                actions=[
+                    ft.TextButton("Сохранить",
+                                  on_click=lambda e: edit_on_farm_table(farm[0], address.value, director.value,
+                                                                        phone.value)
+                                  ),
+                    ft.TextButton("Отмена", on_click=lambda e: page.pop_dialog())
+                ]
+            )
+            page.show_dialog(modal_dialog)
+            page.update()
+            print("Диалог открыт")
 
         farms = connect_to_farms_table()
 
@@ -87,11 +149,19 @@ def main(page: ft.Page):
                         ft.DataCell(ft.Text(str(farm[1]))),
                         ft.DataCell(ft.Text(str(farm[2]))),
                         ft.DataCell(ft.Text(str(farm[3]))),
+
+                        ft.DataCell(
+                            ft.IconButton(icon=ft.Icons.DELETE, icon_color="red",on_click=lambda e, id=farm[0]: delete_on_farm_table(id))
+                        ),
+                        ft.DataCell(
+                            ft.IconButton(icon=ft.Icons.EDIT,icon_color="green",on_click=lambda e, farm=farm: edit_modal_page(farm)
+                                          )
+                        )
                     ])
                 )
         modal_page = ft.AlertDialog(
             modal=True,
-            title=ft.Text("Добавить пользователя"),
+            title=ft.Text("Добавить запись"),
             content=ft.Column([
                 adress_textfield := ft.TextField(label="Адрес"),
                 director_textfield := ft.TextField(label="Директор"),
@@ -106,7 +176,7 @@ def main(page: ft.Page):
         )
         page.add(
             ft.Row([
-                ft.Button("Назад",width=100, height=50, on_click=lambda _: menu_page()),
+                ft.Button("Назад", width=100, height=50, on_click=lambda _: menu_page()),
             ]),
             ft.Row([
                 ft.Text("Зверофермы", size=20)
@@ -119,6 +189,8 @@ def main(page: ft.Page):
                             ft.DataColumn(label=ft.Text("Адрес")),
                             ft.DataColumn(label=ft.Text("Фамилия директора")),
                             ft.DataColumn(label=ft.Text("Телефон")),
+                            ft.DataColumn(label=ft.Text("Удалить")),
+                            ft.DataColumn(label=ft.Text("Редактировать")),
                         ],
                         rows=rows,
                     )
@@ -157,6 +229,7 @@ def main(page: ft.Page):
                 ft.Test("Результаты аукциона", size=20)
             ]),
         )
+
     menu_page()
 
 
