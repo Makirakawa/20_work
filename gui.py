@@ -34,7 +34,7 @@ def main(page: ft.Page):
             ft.Column([
                 ft.Button("Фермы", on_click=lambda _: farms_record_page()),
                 ft.Button("Пушнина на аукционе", on_click=lambda _: lots_record_page()),
-                ft.Button("Результаты аукциона", on_click=lambda _: auction_results()),
+                ft.Button("Результаты аукциона", on_click=lambda _:...() ),
             ])
         )
 
@@ -201,34 +201,168 @@ def main(page: ft.Page):
             ])
 
         )
-
+            #________________________________________________________________________________________________________________lots_record_page
     def lots_record_page():
         page.clean()
+        page.update()
         page.window.height = 900
         page.window.wight = 1600
 
+        def connect_to_lots_table():
+            conn = database_connect()
+            if conn is None:
+                return conn
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute('''SELECT * FROM lots;''')
+                    return cursor.fetchall()
+
+            except Exception as _ex:
+                print("Error connecting to farms table", _ex)
+            finally:
+                if conn:
+                    conn.close()
+
+        def insert_to_lots_table():
+            conn = database_connect()
+            if conn is None:
+                return conn
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        f"INSERT INTO lots(fur_name, quantity, declared_price) VALUES('{fur_name.value}','{quantity.value}','{declared_price.value}')")
+                page.update()
+            except Exception as _ex:
+                print("Error connecting to farms table", _ex)
+            finally:
+                page.pop_dialog()
+                page.clean()
+                lots_record_page()
+                if conn:
+                    conn.close()
+
+        def delete_on_lots_table(lot_id):
+            conn = database_connect()
+            if conn is None:
+                return conn
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute(f"DELETE FROM lots WHERE farm_id = (%s)", (lot_id,))
+                    conn.commit()
+            except Exception as _ex:
+                print("Error connecting to farms table", _ex)
+            finally:
+                page.pop_dialog()
+                page.clean()
+                lots_record_page()
+                if conn:
+                    conn.close()
+
+        def edit_on_lots_table(lot_id, fur_name, quantity, declared_price):
+            conn = database_connect()
+            if conn is None:
+                return conn
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute(f"UPDATE lots SET fur_name=%s, quantity=%s, declared_price=%s WHERE lot_id=%s",(fur_name, quantity, declared_price, lot_id))
+                    conn.commit()
+            except Exception as _ex:
+                print("Error connecting to farms table", _ex)
+            finally:
+                page.pop_dialog()
+                page.clean()
+                lots_record_page()
+                if conn:
+                    conn.close()
+
+        def edit_modal_page(lot):
+            print("Открываю диалог", lot)
+            fur_name = ft.TextField(label="Номер зверофермы", value=lot[1])
+            quantity = ft.TextField(label="Адрес", value=lot[2])
+            declared_price = ft.TextField(label="Фамилия директора", value=lot[3])
+            modal_dialog = ft.AlertDialog(
+                modal=True,
+                title=ft.Text("Редактировать запись"),
+                content=ft.Column([
+                    fur_name,
+                    quantity,
+                    declared_price
+                ]),
+                actions=[
+                    ft.TextButton("Сохранить", on_click=lambda e: edit_on_lots_table(lot[0], fur_name.value, quantity.value, declared_price.value)),
+                    ft.TextButton("Отмена", on_click=lambda e: page.pop_dialog())
+                ]
+            )
+            page.show_dialog(modal_dialog)
+            page.update()
+            print("Диалог открыт")
+
+        lots = connect_to_lots_table()
+
+        rows = []
+        if lots:
+            for lot in lots:
+                print(lot, len(lot))
+                rows.append(
+                    ft.DataRow([
+                        ft.DataCell(ft.Text(str(lot[0]))),
+                        ft.DataCell(ft.Text(str(lot[1]))),
+                        ft.DataCell(ft.Text(str(lot[2]))),
+                        ft.DataCell(ft.Text(str(lot[3]))),
+                        ft.DataCell(ft.Text(str(lot[4]))),
+
+                        ft.DataCell(
+                            ft.IconButton(icon=ft.Icons.DELETE, icon_color="red",
+                                          on_click=lambda e, id=lot[0]: delete_on_lots_table(id))),
+                        ft.DataCell(
+                            ft.IconButton(icon=ft.Icons.EDIT, icon_color="green",
+                                          on_click=lambda e, lot=lot: edit_modal_page(lot)))
+                    ])
+                )
+        modal_page = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Добавить запись"),
+            content=ft.Column([
+                fur_name := ft.TextField(label="Название шерсти"),
+                quantity := ft.TextField(label="Количество"),
+                declared_price := ft.TextField(label="Заявленная цена за единицу"),
+            ]),
+            actions=[
+                ft.Row([
+                    ft.Button("Применить", on_click=lambda _: insert_to_lots_table()),
+                    ft.Button("Отмена", on_click=lambda e: page.pop_dialog()),
+                ])
+            ]
+        )
         page.add(
             ft.Row([
-                ft.Button("Назад", on_click=lambda _: menu_page()),
+                ft.Button("Назад", width=100, height=50, on_click=lambda _: menu_page()),
             ]),
             ft.Row([
                 ft.Text("Пушнина на аукционе", size=20)
+            ]),
+            ft.Row([
+                ft.Column([
+                    ft.DataTable(
+                        columns=[
+                            ft.DataColumn(label=ft.Text("Номер лота")),
+                            ft.DataColumn(label=ft.Text("Номер зверофермы")),
+                            ft.DataColumn(label=ft.Text("Название меха")),
+                            ft.DataColumn(label=ft.Text("Количество единиц")),
+                            ft.DataColumn(label=ft.Text("Заявленная цена за единицу")),
+                            ft.DataColumn(label=ft.Text("Удалить")),
+                            ft.DataColumn(label=ft.Text("Редактировать"))
+                        ],
+                        rows=rows,
+                    )
+                ]),
+                ft.Column([
+                    ft.Button(content="Insert", on_click=lambda _: page.show_dialog(modal_page)),
+                ])
             ])
 
         )
 
-    def auction_results():
-        page.clean()
-        page.window.height = 900
-        page.window.wight = 1600
-        page.add(
-            ft.Row([
-                ft.Button("Назад", on_click=lambda _: menu_page()),
-            ]),
-            ft.Row([
-                ft.Test("Результаты аукциона", size=20)
-            ]),
-        )
 
     menu_page()
 
