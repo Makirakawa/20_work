@@ -39,6 +39,7 @@ def main(page: ft.Page):
         )
 
     def farms_record_page():
+        page.title = "Страница фермы"
         page.clean()
         page.update()
         page.window.height = 900
@@ -66,7 +67,7 @@ def main(page: ft.Page):
             try:
                 with conn.cursor() as cursor:
                     cursor.execute(
-                        f"INSERT INTO farm_table(addres, director, phone) VALUES('{adress_textfield.value}','{director_textfield.value}','{phone_textfield.value}')")
+                        f"INSERT INTO farms (addres, director, phone) VALUES('{adress_textfield.value}','{director_textfield.value}','{phone_textfield.value}')")
                 page.update()
             except Exception as _ex:
                 print("Error connecting to farms table", _ex)
@@ -203,6 +204,7 @@ def main(page: ft.Page):
         )
             #________________________________________________________________________________________________________________lots_record_page
     def lots_record_page():
+        page.title = "Страница лотов"
         page.clean()
         page.update()
         page.window.height = 900
@@ -223,17 +225,42 @@ def main(page: ft.Page):
                 if conn:
                     conn.close()
 
-        def insert_to_lots_table():
+        def connect_to_farms_table():
             conn = database_connect()
             if conn is None:
                 return conn
             try:
                 with conn.cursor() as cursor:
-                    cursor.execute(
-                        f"INSERT INTO lots(fur_name, quantity, declared_price) VALUES('{fur_name.value}','{quantity.value}','{declared_price.value}')")
-                page.update()
+                    cursor.execute('''SELECT * FROM farms;''')
+                    return cursor.fetchall()
+
             except Exception as _ex:
                 print("Error connecting to farms table", _ex)
+            finally:
+                if conn:
+                    conn.close()
+
+        def insert_to_lots_table():
+            try:
+                quantity_val = int(quantity.value)
+                price_val = int(declared_price.value)
+            except ValueError:
+                page.show_snack_bar(
+                    ft.SnackBar(ft.Text("Ошибка: количество и цена должны быть целыми числами!"), open=True))
+                return
+
+            conn = database_connect()
+            if conn is None:
+                return
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "INSERT INTO lots(fur_name, quantity, declared_price) VALUES(%s, %s, %s)",
+                        (fur_name.value, quantity_val, price_val)
+                    )
+                    conn.commit()
+            except Exception as _ex:
+                print("Error inserting into lots table", _ex)
             finally:
                 page.pop_dialog()
                 page.clean()
@@ -258,16 +285,28 @@ def main(page: ft.Page):
                 if conn:
                     conn.close()
 
-        def edit_on_lots_table(lot_id, fur_name, quantity, declared_price):
+        def edit_on_lots_table(lot_id, farm_id, fur_name, quantity, declared_price):
+            try:
+                farm_id = int(farm_id) if farm_id else None
+                quantity = int(quantity)
+                declared_price = int(declared_price)
+            except ValueError:
+                page.show_snack_bar(
+                    ft.SnackBar(ft.Text("Ошибка: количество и цена должны быть целыми числами!"), open=True))
+                return
+
             conn = database_connect()
             if conn is None:
-                return conn
+                return
             try:
                 with conn.cursor() as cursor:
-                    cursor.execute(f"UPDATE lots SET fur_name=%s, quantity=%s, declared_price=%s WHERE lot_id=%s",(fur_name, quantity, declared_price, lot_id))
+                    cursor.execute(
+                        "UPDATE lots SET farm_id=%s, fur_name=%s, quantity=%s, declared_price=%s WHERE lot_id=%s",
+                        (farm_id, fur_name, quantity, declared_price, lot_id)
+                    )
                     conn.commit()
             except Exception as _ex:
-                print("Error connecting to farms table", _ex)
+                print("Ошибка обновления:", _ex)
             finally:
                 page.pop_dialog()
                 page.clean()
@@ -276,26 +315,39 @@ def main(page: ft.Page):
                     conn.close()
 
         def edit_modal_page(lot):
-            print("Открываю диалог", lot)
-            fur_name = ft.TextField(label="Номер зверофермы", value=lot[1])
-            quantity = ft.TextField(label="Адрес", value=lot[2])
-            declared_price = ft.TextField(label="Фамилия директора", value=lot[3])
+            farm_rows = connect_to_farms_table()
+            print("Фермы:", farm_rows)  # проверим что возвращается
+
+            dropdown = ft.Dropdown(
+                label="Номер зверофермы",
+                value=str(lot[1]) if lot[1] is not None else None,
+                options=[
+                    ft.dropdown.Option(key=str(r[0]), text=f"{r[0]} - {r[1]}")
+                    for r in farm_rows
+                ] if farm_rows else [],
+            )
+            fur_name = ft.TextField(label="Название меха", value=str(lot[2]))
+            quantity = ft.TextField(label="Количество", value=str(lot[3]))
+            declared_price = ft.TextField(label="Заявленная цена за единицу", value=str(lot[4]))
+
             modal_dialog = ft.AlertDialog(
                 modal=True,
                 title=ft.Text("Редактировать запись"),
                 content=ft.Column([
+                    dropdown,
                     fur_name,
                     quantity,
                     declared_price
                 ]),
                 actions=[
-                    ft.TextButton("Сохранить", on_click=lambda e: edit_on_lots_table(lot[0], fur_name.value, quantity.value, declared_price.value)),
+                    ft.TextButton("Сохранить", on_click=lambda e: edit_on_lots_table(
+                        lot[0], dropdown.value, fur_name.value, quantity.value, declared_price.value
+                    )),
                     ft.TextButton("Отмена", on_click=lambda e: page.pop_dialog())
                 ]
             )
             page.show_dialog(modal_dialog)
             page.update()
-            print("Диалог открыт")
 
         lots = connect_to_lots_table()
 
