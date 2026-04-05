@@ -85,7 +85,7 @@ def main(page: ft.Page):
             ft.Column([
                 ft.Button("Фермы", on_click=lambda _: farms_record_page()),
                 ft.Button("Пушнина на аукционе", on_click=lambda _: lots_record_page()),
-                ft.Button("Результаты аукциона", on_click=lambda _: auction_result()),
+                ft.Button("Результаты аукциона", on_click=lambda _: auction_result_page()),
             ])
         )
 
@@ -439,8 +439,8 @@ def main(page: ft.Page):
             ])
 
         )
-
-    def auction_result():
+        # _________________________________________________________________________auction_result_page
+    def auction_result_page():
         page.clean()
         page.update()
         page.window.wight = 1600
@@ -556,7 +556,6 @@ def main(page: ft.Page):
         rows = []
         if rests:
             for res in rests:
-                print(res, len(res))
                 rows.append(
                     ft.DataRow([
                         ft.DataCell(ft.Text(str(res[0]))),
@@ -589,7 +588,7 @@ def main(page: ft.Page):
                         columns=[
                             ft.DataColumn(label=ft.Text("Номер аукциона", width=70)),
                             ft.DataColumn(label=ft.Text("Ссылка на лот", width=70)),
-                            ft.DataColumn(label=ft.Text("Номер зверовермы", width=85)),
+                            ft.DataColumn(label=ft.Text("Номер зверовермы", width=60)),
                             ft.DataColumn(label=ft.Text("Название меха", width=70)),
                             ft.DataColumn(label=ft.Text("Сорт", width=40)),
                             ft.DataColumn(label=ft.Text("Количество проданных единиц", width=90)),
@@ -598,7 +597,7 @@ def main(page: ft.Page):
                             ft.DataColumn(label=ft.Text("Изменить", width=70)),
                             ft.DataColumn(label=ft.Text("Удалить", width=65)),
                         ],
-
+                        rows=rows,
                     )
                 ]),
 
@@ -610,7 +609,7 @@ def main(page: ft.Page):
             ])
         )
 
-    auction_result()
+    menu_page()
 
 
 ft.run(main)
