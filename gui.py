@@ -60,6 +60,8 @@ def main(page: ft.Page):
             if conn:
                 conn.close()
 
+
+
         # _____________________________auction_results________________________________________
 
     def connect_to_auction_results_table():  # ______________connect_to_auction_results_table______________
@@ -80,7 +82,7 @@ def main(page: ft.Page):
     def menu_page():
         page.clean()
         page.window.height = 900
-        page.window.wight = 1600
+        page.window.width = 1600
         page.add(
             ft.Column([
                 ft.Button("Фермы", on_click=lambda _: farms_record_page()),
@@ -104,8 +106,9 @@ def main(page: ft.Page):
             try:
                 with conn.cursor() as cursor:
                     cursor.execute(
-                        f"INSERT INTO farms (addres, director, phone) VALUES('{adress_textfield.value}','{director_textfield.value}','{phone_textfield.value}')")
-                page.update()
+                        "INSERT INTO farm_table(addres, director, phone) VALUES (%s, %s, %s)",
+                        (adress_textfield.value, director_textfield.value, phone_textfield.value)
+                    )
             except Exception as _ex:
                 print("Error connecting to farms table", _ex)
             finally:
@@ -121,7 +124,7 @@ def main(page: ft.Page):
                 return conn
             try:
                 with conn.cursor() as cursor:
-                    cursor.execute(f"DELETE FROM farm_table WHERE farm_id = (%s)", (farm_id,))
+                    cursor.execute(f"DELETE FROM farm_table WHERE farm_id = %s", (farm_id,))
                     conn.commit()
             except Exception as _ex:
                 print("Error connecting to farms table", _ex)
@@ -247,7 +250,7 @@ def main(page: ft.Page):
         page.clean()
         page.update()
         page.window.height = 900
-        page.window.wight = 1600
+        page.window.width = 1600
         connect_to_lots_table()
 
         def connect_to_farms_table():
@@ -256,7 +259,7 @@ def main(page: ft.Page):
                 return conn
             try:
                 with conn.cursor() as cursor:
-                    cursor.execute('''SELECT * FROM farms;''')
+                    cursor.execute('''SELECT * FROM farm_table;''')
                     return cursor.fetchall()
 
             except Exception as _ex:
@@ -440,175 +443,246 @@ def main(page: ft.Page):
 
         )
         # _________________________________________________________________________auction_result_page
+
     def auction_result_page():
         page.clean()
-        page.update()
-        page.window.wight = 1600
+        page.window.width = 1600
         page.window.height = 900
-        page.title = "Страница результатов аукционов"
-        connect_to_auction_results_table()
+        page.title = "Результаты аукциона"
 
-        def connect_to_farms_table():
+        # ---------------- DB ----------------
+
+        def get_farms():
             conn = database_connect()
-            if conn is None:
-                return conn
             try:
-                with conn.cursor() as cursor:
-                    cursor.execute('''SELECT * FROM farm_table;''')
-                    return cursor.fetchall()
-
-            except Exception as _ex:
-                print("Error connecting to farms table", _ex)
+                with conn.cursor() as cur:
+                    cur.execute("SELECT farm_id, addres FROM farm_table")
+                    return cur.fetchall()
             finally:
-                if conn:
+                conn.close()
+
+        def get_lots():
+            conn = database_connect()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT lot_id, fur_name FROM lots")
+                    return cur.fetchall()
+            finally:
+                conn.close()
+
+        def get_results():
+            conn = database_connect()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT * FROM auction_results ORDER BY result_id")
+                    return cur.fetchall()
+            finally:
+                conn.close()
+
+        # ---------------- DELETE ----------------
+
+        def delete_result(result_id):
+            conn = database_connect()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "DELETE FROM auction_results WHERE result_id = %s",
+                        (result_id,)
+                    )
+                    conn.commit()
+            finally:
+                conn.close()
+
+            page.clean()
+            auction_result_page()
+
+        # ---------------- INSERT ----------------
+
+        def insert_modal():
+            print("MODAL OPEN")
+            farms = get_farms()
+            lots = get_lots()
+
+            farm_dd = ft.Dropdown(
+                label="Ферма",
+                options=[ft.dropdown.Option(str(f[0]), f"{f[0]} - {f[1]}") for f in farms]
+            )
+
+            lot_dd = ft.Dropdown(
+                label="Лот",
+                options=[ft.dropdown.Option(str(l[0]), f"{l[0]} - {l[1]}") for l in lots]
+            )
+
+            fur_name = ft.TextField(label="Мех")
+            grade = ft.TextField(label="Сорт")
+            sold_quantity = ft.TextField(label="Количество")
+            sale_price = ft.TextField(label="Цена")
+
+            buyer_category = ft.Dropdown(
+                label="Категория",
+                options=[
+                    ft.dropdown.Option("меховая фабрика"),
+                    ft.dropdown.Option("ателье"),
+                    ft.dropdown.Option("частное лицо"),
+                ]
+            )
+
+            def save(e):
+                try:
+                    qty = int(sold_quantity.value)
+                    price = float(sale_price.value)
+                except:
+                    page.snack_bar = ft.SnackBar(ft.Text("Ошибка ввода чисел"))
+                    page.snack_bar.open = True
+                    page.update()
+                    return
+
+                conn = database_connect()
+                try:
+                    with conn.cursor() as cur:
+                        cur.execute("""
+                            INSERT INTO auction_results
+                            (lot_id, farm_id, fur_name, grade, sold_quantity, sale_price, buyer_category)
+                            VALUES (%s,%s,%s,%s,%s,%s,%s)
+                        """, (
+                            int(lot_dd.value),
+                            int(farm_dd.value),
+                            fur_name.value,
+                            grade.value,
+                            qty,
+                            price,
+                            buyer_category.value
+                        ))
+                        conn.commit()
+                finally:
                     conn.close()
 
-        def insert_into_results_table():
-            conn = database_connect()
-            if conn is None:
-                return
-            try:
-                pass
-            except Exception as e:
-                print("[PAGE: actions_result] [FUNCTION: insert_into_results_table] error: ", e)
-            finally:
-                conn.close()
+                dlg.open = False
                 page.update()
+                auction_result_page()
 
-        def delete_into_results_table(result_id):
-            conn = database_connect()
-            if conn is None:
-                return
-            try:
-                with conn.cursor() as cursor:
-                    cursor.execute("DELETE FROM results WHERE id = %s", (result_id))
-                    conn.commit()
-            except Exception as e:
-                print("[PAGE: actions_result] [FUNCTION: delete_into_results_table] error: ", e)
-            finally:
-                conn.close()
-                page.update()
-
-        def edit_into_results_table(farm_id, fur_name, grade, sold_quantity, sale_price, buyer_category):
-            conn = database_connect()
-            if conn is None:
-                return
-            try:
-                with conn.cursor() as cursor:
-                    cursor.execute("", )
-                    conn.commit()
-            except Exception as e:
-                print("[PAGE: actions_result] [FUNCTION: edit_into_results_table] error: ", e)
-            finally:
-                conn.close()
-                page.update()
-
-        def edit_modal_page(res, lot, farm):
-            farm_rows = connect_to_farms_table()
-            lots_rows = connect_to_lots_table()
-
-            fur_name = ft.TextField(label="Название меха", value=str(res[3]))
-            grade = ft.TextField(label="Сорт", value=str(res[4]))
-            sold_quantity = ft.TextField(label="Количество проданных единиц", value=str(res[5]))
-            sale_price = ft.TextField(label="Продажная цена за единицу", value=str(res[6]))
-            buyer_category = ft.TextField(label="Категория покупателя", value=str(res[7]))
-
-            farm_dropdown = ft.Dropdown(
-                label="Номер зверофермы",
-                value=str(farm[1]) if farm[1] is not None else None,
-                options=[
-                    ft.dropdown.Option(key=str(farm[0]), text=f"f{farm[0]} - {farm[1]}")
-                    for farm in farm_rows
-                ] if farm_rows else [],
-            )
-            lots_dropdown = ft.Dropdown(
-                label="Номер лота",
-                value=str(lot[1]) if lot[1] is not None else None,
-                options=[
-                    ft.dropdown.Option(key=str(lot[0]), text=f"f{lot[0]} - {lot[1]}")
-                    for lot in lots_rows
-                ] if lots_rows else [],
-            )
-            modal_dialog = ft.AlertDialog(
+            dlg = ft.AlertDialog(
                 modal=True,
-                title=ft.Text("Редактировать запись"),
+                title=ft.Text("Добавить результат"),
                 content=ft.Column([
-                    lots_dropdown,
-                    farm_dropdown,
+                    lot_dd,
+                    farm_dd,
                     fur_name,
-                    grade,
                     grade,
                     sold_quantity,
                     sale_price,
                     buyer_category
                 ]),
                 actions=[
-                    ft.TextButton("Сохранить", on_click=lambda e: edit_into_results_table(res[0], lots_dropdown.value, farm_dropdown.value, )),
-                    ft.TextButton("Отмена", on_click=lambda e: page.pop_dialog())
+                    ft.TextButton("Сохранить", on_click=save),
+                    ft.TextButton("Отмена", on_click=lambda e: close_dialog(dlg))
                 ]
             )
-            page.show_dialog(modal_dialog)
+
+            page.dialog = dlg
+            dlg.open = True
             page.update()
 
+        def edit_modal(res):
+            print("EDIT CLICKED:", res)
 
-        rests = connect_to_auction_results_table()
+            farms = connect_to_farms_table()
+            lots = connect_to_lots_table()
+
+            farm_dd = ft.Dropdown(
+                label="Ферма",
+                value=str(res[2]),
+                options=[ft.dropdown.Option(str(f[0]), f"{f[0]} - {f[1]}") for f in farms]
+            )
+
+            lot_dd = ft.Dropdown(
+                label="Лот",
+                value=str(res[1]),
+                options=[ft.dropdown.Option(str(l[0]), f"{l[0]} - {l[1]}") for l in lots]
+            )
+
+            dlg = ft.AlertDialog(
+                modal=True,
+                title=ft.Text("Редактирование"),
+                content=ft.Column([
+                    lot_dd,
+                    farm_dd,
+                    ft.TextField(label="Мех", value=res[3]),
+                    ft.TextField(label="Сорт", value=res[4]),
+                    ft.TextField(label="Количество", value=str(res[5])),
+                    ft.TextField(label="Цена", value=str(res[6])),
+                ]),
+            )
+
+            page.dialog = dlg
+            dlg.open = True
+            page.update()
+
+        def close_dialog(dlg):
+            dlg.open = False
+            page.update()
+
+        # ---------------- TABLE ----------------
+
+        results = get_results()
 
         rows = []
-        if rests:
-            for res in rests:
-                rows.append(
-                    ft.DataRow([
-                        ft.DataCell(ft.Text(str(res[0]))),
-                        ft.DataCell(ft.Text(str(res[1]))),
-                        ft.DataCell(ft.Text(str(res[2]))),
-                        ft.DataCell(ft.Text(str(res[3]))),
-                        ft.DataCell(ft.Text(str(res[4]))),
-                        ft.DataCell(ft.Text(str(res[5]))),
-                        ft.DataCell(ft.Text(str(res[6]))),
-                        ft.DataCell(ft.Text(str(res[7]))),
+        for res in results:
+            rows.append(
+                ft.DataRow([
+                    ft.DataCell(ft.Text(str(res[0]))),
+                    ft.DataCell(ft.Text(str(res[1]))),
+                    ft.DataCell(ft.Text(str(res[2]))),
+                    ft.DataCell(ft.Text(str(res[3]))),
+                    ft.DataCell(ft.Text(str(res[4]))),
+                    ft.DataCell(ft.Text(str(res[5]))),
+                    ft.DataCell(ft.Text(str(res[6]))),
+                    ft.DataCell(ft.Text(str(res[7]))),
 
-                        ft.DataCell(
-                            ft.IconButton(icon=ft.Icons.EDIT, icon_color="green", on_click=lambda e, res=res: edit_modal_page(res))),
-                        ft.DataCell(
-                            ft.IconButton(icon=ft.Icons.DELETE, icon_color="red", on_click= lambda e, id=res[0]: delete_into_results_table(id))
+                    ft.DataCell(
+                        ft.IconButton(
+                            icon=ft.Icons.EDIT,
+                            icon_color="green",
+                            on_click=lambda e, r=res: edit_modal(r)
                         )
+                    ),
+                    ft.DataCell(
+                        ft.IconButton(
+                            icon=ft.Icons.DELETE,
+                            icon_color="red",
+                            on_click=lambda e, rid=res[0]: delete_result(rid)
+                        )
+                    )
+                ])
+            )
 
-                    ])
-                )
+        # ---------------- UI ----------------
+
         page.add(
             ft.Row([
-                ft.Button("Назад", width=100, height=50, on_click=lambda _: menu_page()),
+                ft.Button("Назад", on_click=lambda e: menu_page())
             ]),
-            ft.Row([
-                ft.Text("Результаты аукциона", size=20)
-            ]),
-            ft.Row([
-                ft.Column([
-                    ft.DataTable(
-                        columns=[
-                            ft.DataColumn(label=ft.Text("Номер аукциона", width=70)),
-                            ft.DataColumn(label=ft.Text("Ссылка на лот", width=70)),
-                            ft.DataColumn(label=ft.Text("Номер зверовермы", width=60)),
-                            ft.DataColumn(label=ft.Text("Название меха", width=70)),
-                            ft.DataColumn(label=ft.Text("Сорт", width=40)),
-                            ft.DataColumn(label=ft.Text("Количество проданных единиц", width=90)),
-                            ft.DataColumn(label=ft.Text("Цена за единицу", width=70)),
-                            ft.DataColumn(label=ft.Text("категория покупателя", width=80)),
-                            ft.DataColumn(label=ft.Text("Изменить", width=70)),
-                            ft.DataColumn(label=ft.Text("Удалить", width=65)),
-                        ],
-                        rows=rows,
-                    )
-                ]),
 
-            ]),
-            ft.Row([
-                ft.Column([
-                    ft.Button(content="Insert", on_click=lambda _: page.show_dialog(...)),
-                ])
-            ])
+            ft.Text("Результаты аукциона", size=22),
+
+            ft.DataTable(
+                columns=[
+                    ft.DataColumn(ft.Text("ID")),
+                    ft.DataColumn(ft.Text("Лот")),
+                    ft.DataColumn(ft.Text("Ферма")),
+                    ft.DataColumn(ft.Text("Мех")),
+                    ft.DataColumn(ft.Text("Сорт")),
+                    ft.DataColumn(ft.Text("Кол-во")),
+                    ft.DataColumn(ft.Text("Цена")),
+                    ft.DataColumn(ft.Text("Категория")),
+                    ft.DataColumn(ft.Text("Изменить")),
+                    ft.DataColumn(ft.Text("Удалить")),
+                ],
+                rows=rows
+            ),
+
+            ft.Button("Insert", on_click= insert_modal)
         )
-
     menu_page()
 
 
